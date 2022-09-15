@@ -196,6 +196,29 @@ paths:
                   $ref: '#/components/schemas/EventSubscriber'
         default:
           $ref: '../common/error_response.yaml'
+  /internal/network/v1/nodedid:
+    put:
+      summary: "Set the noded's nodeDID"
+      description: |
+        Sets the node's nodeDID and add reconnects to all peers authenticating with the new nodeDID.
+        
+        error returns:
+        * 400 - missing or invalid DID
+        * 500 - internal server error
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              $ref: '#/components/schemas/DID'
+      operationId: setNodeDID
+      tags:
+        - admin
+      responses:
+        "200":
+          description: "The request was accepted, process was started"
+        default:
+          $ref: '../common/error_response.yaml'
 components:
   schemas:
     Event:
@@ -259,6 +282,8 @@ components:
         softwareVersion:
           description: Indication of the software version of the node. It's recommended to use a (Git) commit ID that uniquely resolves to a code revision, alternatively a semantic version could be used (e.g. 1.2.5).
           type: string
+    DID:
+      $ref: '../common/ssi_types.yaml#/components/schemas/DID'
   securitySchemes:
     jwtBearerAuth:
       type: http

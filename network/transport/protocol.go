@@ -30,6 +30,8 @@ type Protocol interface {
 	Start() error
 	// Stop stops the Protocol implementation.
 	Stop()
+	// Reset updates the protocol as if it's a new protocol calling Configure + Start
+	Reset() error
 	// Diagnostics collects and returns diagnostical information on the protocol.
 	Diagnostics() []core.DiagnosticResult
 	// PeerDiagnostics collects and returns diagnostical information on the peers the protocol is communicating with.

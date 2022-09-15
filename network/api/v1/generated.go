@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -143,6 +144,9 @@ type ClientInterface interface {
 	// ListEvents request
 	ListEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SetNodeDID request with any body
+	SetNodeDIDWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// Reprocess request
 	Reprocess(ctx context.Context, params *ReprocessParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -182,6 +186,18 @@ func (c *Client) GetPeerDiagnostics(ctx context.Context, reqEditors ...RequestEd
 
 func (c *Client) ListEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListEventsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetNodeDIDWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetNodeDIDRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +369,35 @@ func NewListEventsRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewSetNodeDIDRequestWithBody generates requests for SetNodeDID with any type of body
+func NewSetNodeDIDRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/internal/network/v1/nodedid")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -551,6 +596,9 @@ type ClientWithResponsesInterface interface {
 	// ListEvents request
 	ListEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListEventsResponse, error)
 
+	// SetNodeDID request with any body
+	SetNodeDIDWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetNodeDIDResponse, error)
+
 	// Reprocess request
 	ReprocessWithResponse(ctx context.Context, params *ReprocessParams, reqEditors ...RequestEditorFn) (*ReprocessResponse, error)
 
@@ -625,6 +673,27 @@ func (r ListEventsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type SetNodeDIDResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r SetNodeDIDResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetNodeDIDResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -743,6 +812,15 @@ func (c *ClientWithResponses) ListEventsWithResponse(ctx context.Context, reqEdi
 	return ParseListEventsResponse(rsp)
 }
 
+// SetNodeDIDWithBodyWithResponse request with arbitrary body returning *SetNodeDIDResponse
+func (c *ClientWithResponses) SetNodeDIDWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetNodeDIDResponse, error) {
+	rsp, err := c.SetNodeDIDWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetNodeDIDResponse(rsp)
+}
+
 // ReprocessWithResponse request returning *ReprocessResponse
 func (c *ClientWithResponses) ReprocessWithResponse(ctx context.Context, params *ReprocessParams, reqEditors ...RequestEditorFn) (*ReprocessResponse, error) {
 	rsp, err := c.Reprocess(ctx, params, reqEditors...)
@@ -849,6 +927,22 @@ func ParseListEventsResponse(rsp *http.Response) (*ListEventsResponse, error) {
 	return response, nil
 }
 
+// ParseSetNodeDIDResponse parses an HTTP response from a SetNodeDIDWithResponse call
+func ParseSetNodeDIDResponse(rsp *http.Response) (*SetNodeDIDResponse, error) {
+	bodyBytes, err := ioutil.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetNodeDIDResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
 // ParseReprocessResponse parses an HTTP response from a ReprocessWithResponse call
 func ParseReprocessResponse(rsp *http.Response) (*ReprocessResponse, error) {
 	bodyBytes, err := ioutil.ReadAll(rsp.Body)
@@ -934,6 +1028,9 @@ type ServerInterface interface {
 	// Lists the state of the internal events
 	// (GET /internal/network/v1/events)
 	ListEvents(ctx echo.Context) error
+	// Set the noded's nodeDID
+	// (PUT /internal/network/v1/nodedid)
+	SetNodeDID(ctx echo.Context) error
 	// Reprocess all transactions of the given type, verify and process
 	// (POST /internal/network/v1/reprocess)
 	Reprocess(ctx echo.Context, params ReprocessParams) error
@@ -999,6 +1096,17 @@ func (w *ServerInterfaceWrapper) ListEvents(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshalled arguments
 	err = w.Handler.ListEvents(ctx)
+	return err
+}
+
+// SetNodeDID converts echo context to params.
+func (w *ServerInterfaceWrapper) SetNodeDID(ctx echo.Context) error {
+	var err error
+
+	ctx.Set(JwtBearerAuthScopes, []string{""})
+
+	// Invoke the callback with all the unmarshalled arguments
+	err = w.Handler.SetNodeDID(ctx)
 	return err
 }
 
@@ -1120,6 +1228,10 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/internal/network/v1/events", func(context echo.Context) error {
 		si.(Preprocessor).Preprocess("ListEvents", context)
 		return wrapper.ListEvents(context)
+	})
+	router.PUT(baseURL+"/internal/network/v1/nodedid", func(context echo.Context) error {
+		si.(Preprocessor).Preprocess("SetNodeDID", context)
+		return wrapper.SetNodeDID(context)
 	})
 	router.POST(baseURL+"/internal/network/v1/reprocess", func(context echo.Context) error {
 		si.(Preprocessor).Preprocess("Reprocess", context)

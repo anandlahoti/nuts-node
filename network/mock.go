@@ -122,6 +122,20 @@ func (mr *MockTransactionsMockRecorder) Reprocess(contentType interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reprocess", reflect.TypeOf((*MockTransactions)(nil).Reprocess), contentType)
 }
 
+// SetNodeDID mocks base method.
+func (m *MockTransactions) SetNodeDID(did string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNodeDID", did)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetNodeDID indicates an expected call of SetNodeDID.
+func (mr *MockTransactionsMockRecorder) SetNodeDID(did interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNodeDID", reflect.TypeOf((*MockTransactions)(nil).SetNodeDID), did)
+}
+
 // Subscribe mocks base method.
 func (m *MockTransactions) Subscribe(name string, receiver dag.ReceiverFn, filters ...SubscriberOption) error {
 	m.ctrl.T.Helper()

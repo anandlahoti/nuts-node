@@ -148,6 +148,30 @@ func (p protocol) GetMessageType(envelope interface{}) string {
 }
 
 func (p *protocol) Configure(_ transport.PeerID) error {
+	// register private payload receiver
+	err := p.startPrivatePayloadReceiver()
+	if err != nil {
+		return err
+	}
+
+	// register gossip part of protocol
+	p.gManager = gossip.NewManager(p.ctx, time.Duration(p.config.GossipInterval)*time.Millisecond)
+	p.gManager.RegisterSender(p.sendGossip)
+
+	// called after DAG is committed
+	_, err = p.state.Notifier("gossip", p.gossipTransaction,
+		dag.WithSelectionFilter(func(event dag.Event) bool {
+			return event.Type == dag.TransactionEventType
+		}),
+		dag.WithContext(p.ctx))
+	if err != nil {
+		return fmt.Errorf("failed to register transaction listener for gossip: %w", err)
+	}
+
+	return nil
+}
+
+func (p *protocol) startPrivatePayloadReceiver() error {
 	nodeDID, err := p.nodeDIDResolver.Resolve()
 	if err != nil {
 		log.Logger().WithError(err).Error("Failed to resolve node DID")
@@ -166,21 +190,20 @@ func (p *protocol) Configure(_ transport.PeerID) error {
 			return fmt.Errorf("failed to register transaction listener for private transactions: %w", err)
 		}
 	}
+	return nil
+}
 
-	// register gossip part of protocol
-	p.gManager = gossip.NewManager(p.ctx, time.Duration(p.config.GossipInterval)*time.Millisecond)
-	p.gManager.RegisterSender(p.sendGossip)
-
-	// called after DAG is committed
-	_, err = p.state.Notifier("gossip", p.gossipTransaction,
-		dag.WithSelectionFilter(func(event dag.Event) bool {
-			return event.Type == dag.TransactionEventType
-		}),
-		dag.WithContext(p.ctx))
-	if err != nil {
-		return fmt.Errorf("failed to register transaction listener for gossip: %w", err)
+func (p *protocol) Reset() error {
+	log.Logger().
+		WithField(core.LogFieldProtocolVersion, p.Version()).
+		Info("Resetting protocol")
+	if p.privatePayloadReceiver == nil {
+		err := p.startPrivatePayloadReceiver()
+		if err != nil {
+			// TODO: should it fail on this?
+			return err
+		}
 	}
-
 	return nil
 }
 

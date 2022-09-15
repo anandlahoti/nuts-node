@@ -72,7 +72,7 @@ type Network struct {
 	peerID              transport.PeerID
 	didDocumentResolver types.DocResolver
 	decrypter           crypto.Decrypter
-	nodeDIDResolver     transport.NodeDIDResolver
+	nodeDIDManager      transport.NodeDIDManager
 	didDocumentFinder   types.DocFinder
 	eventPublisher      events.Event
 	connectionStore     stoabs.KVStore
@@ -101,7 +101,7 @@ func NewNetworkInstance(
 		privateKeyResolver:  privateKeyResolver,
 		didDocumentResolver: didDocumentResolver,
 		didDocumentFinder:   didDocumentFinder,
-		nodeDIDResolver:     &transport.FixedNodeDIDResolver{},
+		nodeDIDManager:      transport.NewNodeDIDManager(transport.FixedNodeDIDResolver{}),
 		eventPublisher:      eventPublisher,
 		storeProvider:       storeProvider,
 	}
@@ -142,12 +142,12 @@ func (n *Network) Configure(config core.ServerConfig) error {
 		if err != nil {
 			return fmt.Errorf("configured NodeDID is invalid: %w", err)
 		}
-		n.nodeDIDResolver = &transport.FixedNodeDIDResolver{NodeDID: *configuredNodeDID}
+		n.nodeDIDManager.SetResolver(transport.FixedNodeDIDResolver{NodeDID: *configuredNodeDID})
 	} else if !config.Strictmode {
 		// If node DID is not set we can wire the automatic node DID resolver, which makes testing/workshops/development easier.
 		// Might cause unexpected behavior though, so it can't be used in strict mode.
 		log.Logger().Info("Node DID not set, will be auto-discovered.")
-		n.nodeDIDResolver = transport.NewAutoNodeDIDResolver(n.privateKeyResolver, n.didDocumentFinder)
+		n.nodeDIDManager.SetResolver(transport.NewAutoNodeDIDResolver(n.privateKeyResolver, n.didDocumentFinder))
 	} else {
 		log.Logger().Warn("Node DID not set, sending/receiving private transactions is disabled.")
 	}
@@ -161,7 +161,7 @@ func (n *Network) Configure(config core.ServerConfig) error {
 	var candidateProtocols []transport.Protocol
 	if n.protocols == nil {
 		candidateProtocols = []transport.Protocol{
-			v2.New(v2Cfg, n.nodeDIDResolver, n.state, n.didDocumentResolver, n.decrypter, n.collectDiagnosticsForPeers, dagStore),
+			v2.New(v2Cfg, n.nodeDIDManager, n.state, n.didDocumentResolver, n.decrypter, n.collectDiagnosticsForPeers, dagStore),
 		}
 	} else {
 		// Only set protocols if not already set: improves testability
@@ -222,7 +222,7 @@ func (n *Network) Configure(config core.ServerConfig) error {
 		n.connectionManager = grpc.NewGRPCConnectionManager(
 			grpc.NewConfig(n.config.GrpcAddr, n.peerID, grpcOpts...),
 			n.connectionStore,
-			n.nodeDIDResolver,
+			n.nodeDIDManager,
 			authenticator,
 			n.protocols...,
 		)
@@ -282,7 +282,7 @@ func (n *Network) Start() error {
 	}
 
 	// Sanity check for configured node DID: can we resolve it?
-	nodeDID, err := n.nodeDIDResolver.Resolve()
+	nodeDID, err := n.nodeDIDManager.Resolve()
 	if err != nil {
 		return err
 	}
@@ -462,7 +462,7 @@ func (n *Network) CreateTransaction(template Template) (dag.Transaction, error) 
 
 	// Assert node DID is configured when participants are specified
 	if len(template.Participants) > 0 {
-		nodeDID, err := n.nodeDIDResolver.Resolve()
+		nodeDID, err := n.nodeDIDManager.Resolve()
 		if err != nil {
 			return nil, err
 		}
@@ -581,7 +581,7 @@ func (n *Network) Diagnostics() []core.DiagnosticResult {
 		results = append(results, core.DiagnosticResultMap{Title: "state", Items: graph.Diagnostics()})
 	}
 	// NodeDID
-	nodeDID, err := n.nodeDIDResolver.Resolve()
+	nodeDID, err := n.nodeDIDManager.Resolve()
 	if err != nil {
 		log.Logger().
 			WithError(err).
@@ -675,6 +675,41 @@ func (n *Network) Reprocess(contentType string) {
 			time.Sleep(time.Second)
 		}
 	}()
+}
+
+func (n *Network) SetNodeDID(id string) error {
+	DID, err := did.ParseDID(id)
+	if err != nil {
+		return err
+	}
+
+	// We have the private keys and there is a NutsComm endpoint
+	if err = n.validateNodeDID(*DID); err != nil {
+		return err
+	}
+
+	// Set new DID
+	n.nodeDIDManager.SetResolver(transport.FixedNodeDIDResolver{NodeDID: *DID})
+	n.config.NodeDID = DID.String()
+	log.Logger().
+		WithField(core.LogFieldNodeDID, DID).
+		Warn("DID changed")
+
+	// Reset protocols (starts privateVC receiver if not active)
+	for _, proto := range n.protocols {
+		err = proto.Reset()
+		if err != nil {
+			return err
+		}
+	}
+	// Reconnect to peers
+	n.connectionManager.Reconnect()
+	if err = n.connectToKnownNodes(*DID); err != nil {
+		// always nil
+		return err
+	}
+
+	return nil
 }
 
 func (n *Network) collectDiagnosticsForPeers() transport.Diagnostics {

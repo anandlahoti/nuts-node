@@ -19,6 +19,7 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/nuts-foundation/nuts-node/network/transport"
@@ -116,6 +117,19 @@ func (hb HTTPClient) GetPeerDiagnostics() (map[transport.PeerID]PeerDiagnostics,
 func (hb HTTPClient) Reprocess(contentType string) error {
 	ctx := context.Background()
 	response, err := hb.client().Reprocess(ctx, &ReprocessParams{Type: &contentType})
+	if err != nil {
+		return err
+	}
+	if err = core.TestResponseCode(http.StatusAccepted, response); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetNodeDID sets the node's nodeDID and reconnects to all peers to authenticate with this DID.
+func (hb HTTPClient) SetNodeDID(did string) error {
+	ctx := context.Background()
+	response, err := hb.client().SetNodeDIDWithBody(ctx, "text/plain", bytes.NewBufferString(did))
 	if err != nil {
 		return err
 	}

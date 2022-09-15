@@ -92,6 +92,10 @@ func (s TestProtocol) Start() error {
 func (s TestProtocol) Stop() {
 }
 
+func (s TestProtocol) Reset() error {
+	return nil
+}
+
 func (s TestProtocol) Diagnostics() []core.DiagnosticResult {
 	return nil
 }

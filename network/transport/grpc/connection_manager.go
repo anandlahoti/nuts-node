@@ -229,7 +229,7 @@ func (s *grpcConnectionManager) Stop() {
 	}
 }
 
-func (s grpcConnectionManager) Connect(peerAddress string, options ...transport.ConnectionOption) {
+func (s *grpcConnectionManager) Connect(peerAddress string, options ...transport.ConnectionOption) {
 	peer := transport.Peer{Address: peerAddress}
 	for _, o := range options {
 		o(&peer)
@@ -242,6 +242,12 @@ func (s grpcConnectionManager) Connect(peerAddress string, options ...transport.
 		return
 	}
 	s.startTracking(peer.Address, connection)
+}
+
+func (s *grpcConnectionManager) Reconnect() {
+	for _, connection := range s.connections.AllMatching(ByConnected()) {
+		connection.disconnect()
+	}
 }
 
 func (s *grpcConnectionManager) RegisterObserver(observer transport.StreamStateObserverFunc) {

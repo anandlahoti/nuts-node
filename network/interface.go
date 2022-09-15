@@ -50,6 +50,9 @@ type Transactions interface {
 	// Reprocess walks the DAG and publishes all transactions matching the contentType via Nats
 	// This is an async process and will not return any feedback
 	Reprocess(contentType string)
+	// SetNodeDID set the DID as the nodeDID if it is valid and the node holds the private keys for this DID.
+	// All connections are restarted to authenticate with new DID. Returns nil without reconnecting if given did is already set as nodeDID.
+	SetNodeDID(did string) error
 	// WithPersistency returns a SubscriberOption for persistency. It allows the DAG KVStore to be used as persistent store for notifications.
 	// The notifications will then have ACID properties
 	WithPersistency() SubscriberOption

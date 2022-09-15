@@ -53,6 +53,8 @@ const (
 	// LogFieldServiceEndpoint is the log field key of the ID of the endpoint of a DID document service from the VDR module.
 	LogFieldServiceEndpoint = "serviceEndpoint"
 
+	// LogFieldNodeDID is the log field key for node's DID from the network module.
+	LogFieldNodeDID = "nodeDID"
 	// LogFieldNodeAddress is the log field key for node's (gRPC) address from the network module.
 	LogFieldNodeAddress = "nodeAddr"
 	// LogFieldProtocolVersion is the log field key for the protocol version from the network module.

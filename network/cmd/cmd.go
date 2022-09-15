@@ -20,6 +20,8 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/nuts-foundation/go-did/did"
+	vdrTypes "github.com/nuts-foundation/nuts-node/vdr/types"
 	"sort"
 	"strings"
 
@@ -65,6 +67,7 @@ func Cmd() *cobra.Command {
 	cmd.AddCommand(payloadCommand())
 	cmd.AddCommand(peersCommand())
 	cmd.AddCommand(reprocessCommand())
+	cmd.AddCommand(nodeDidCommand())
 	return cmd
 }
 
@@ -199,6 +202,27 @@ func reprocessCommand() *cobra.Command {
 				return fmt.Errorf("unable to reprocess transactions: %w", err)
 			}
 			cmd.Printf("Reprocessing transactions with contentType: %s\n", args[0])
+			return nil
+		},
+	}
+}
+
+func nodeDidCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "nodedid [did]",
+		Short: "Set node DID and reauthenticate with all peers",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			clientConfig := core.NewClientConfigForCommand(cmd)
+			if err := httpClient(clientConfig).SetNodeDID(args[0]); err != nil {
+				if err == did.ErrInvalidDID || err == vdrTypes.ErrDIDNotManagedByThisNode {
+					return err
+				}
+				// prints help on 400
+				return fmt.Errorf("unable to set node DID: %w", err)
+
+			}
+			cmd.Printf("New node DID: %s\n", args[0])
 			return nil
 		},
 	}

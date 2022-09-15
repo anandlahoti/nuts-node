@@ -19,6 +19,8 @@
 package v1
 
 import (
+	"github.com/nuts-foundation/go-did/did"
+	vdrTypes "github.com/nuts-foundation/nuts-node/vdr/types"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -32,6 +34,14 @@ import (
 // Wrapper implements the ServerInterface for the network API.
 type Wrapper struct {
 	Service network.Transactions
+}
+
+// ResolveStatusCode maps errors returned by this API to specific HTTP status codes.
+func (a *Wrapper) ResolveStatusCode(err error) int {
+	return core.ResolveStatusCode(err, map[error]int{
+		vdrTypes.ErrDIDNotManagedByThisNode: http.StatusForbidden,
+		did.ErrInvalidDID:                   http.StatusBadRequest,
+	})
 }
 
 // Preprocess is called just before the API operation itself is invoked.
@@ -163,6 +173,19 @@ func (a Wrapper) Reprocess(ctx echo.Context, params ReprocessParams) error {
 	}
 
 	a.Service.Reprocess(*params.Type)
+
+	return ctx.NoContent(http.StatusAccepted)
+}
+
+func (a Wrapper) SetNodeDID(ctx echo.Context) error {
+	var didStr string
+	if err := ctx.Bind(&didStr); err != nil {
+		return err
+	}
+
+	if err := a.Service.SetNodeDID(didStr); err != nil {
+		return err
+	}
 
 	return ctx.NoContent(http.StatusAccepted)
 }

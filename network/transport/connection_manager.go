@@ -57,6 +57,9 @@ type ConnectionManager interface {
 	// The connection can then still be used for non-authenticated purposes.
 	Connect(peerAddress string, option ...ConnectionOption)
 
+	// Reconnect closes all active connections and attempts to reconnect.
+	Reconnect()
+
 	// Peers returns a slice containing the peers that are currently connected.
 	Peers() []Peer
 

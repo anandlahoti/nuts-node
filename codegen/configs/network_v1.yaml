@@ -33,3 +33,4 @@ output-options:
       context)\n        return wrapper.{{.OperationId}}(context)\n    })\n{{end}}\n}\n"
   exclude-schemas:
   - PeerDiagnostics
+  - DID

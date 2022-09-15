@@ -27,6 +27,36 @@ import (
 	"time"
 )
 
+// NodeDIDManager
+type NodeDIDManager interface {
+	NodeDIDResolver
+	SetResolver(resolver NodeDIDResolver)
+}
+
+func NewNodeDIDManager(resolver NodeDIDResolver) NodeDIDManager {
+	return &nodeDIDManager{resolver: resolver}
+}
+
+type nodeDIDManager struct {
+	mutex    sync.RWMutex
+	resolver NodeDIDResolver
+}
+
+func (n *nodeDIDManager) SetResolver(resolver NodeDIDResolver) {
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
+	n.resolver = resolver
+}
+
+func (n *nodeDIDManager) Resolve() (did.DID, error) {
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
+	if n.resolver == nil {
+		return did.DID{}, nil
+	}
+	return n.resolver.Resolve()
+}
+
 // NodeDIDResolver defines an interface for types that resolve the local node's DID, which is used to identify the node on the network.
 type NodeDIDResolver interface {
 	// Resolve tries to resolve the node DID. If it's absent, an empty DID is returned. In any other non-successful case an error is returned.
