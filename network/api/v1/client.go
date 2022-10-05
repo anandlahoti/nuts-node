@@ -64,9 +64,9 @@ func (hb HTTPClient) GetTransaction(transactionRef hash.SHA256Hash) (dag.Transac
 }
 
 // ListTransactions returns all transactions known to this network instance.
-func (hb HTTPClient) ListTransactions() ([]dag.Transaction, error) {
+func (hb HTTPClient) ListTransactions(start, end int) ([]dag.Transaction, error) {
 	ctx := context.Background()
-	res, err := hb.client().ListTransactions(ctx)
+	res, err := hb.client().ListTransactions(ctx, &ListTransactionsParams{&start, &end})
 	if err != nil {
 		return nil, err
 	}

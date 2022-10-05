@@ -110,7 +110,7 @@ func TestCmd_List(t *testing.T) {
 	t.Run("it handles an http error", func(t *testing.T) {
 		cmd := Cmd()
 		cmd.SetArgs([]string{"list"})
-		assert.EqualError(t, cmd.Execute(), "unable to list transactions: Get \"http:///internal/network/v1/transaction\": http: no Host in request URL")
+		assert.EqualError(t, cmd.Execute(), "unable to list transactions: Get \"http:///internal/network/v1/transaction?end=4294967295&start=0\": http: no Host in request URL")
 	})
 
 }

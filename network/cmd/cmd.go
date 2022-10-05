@@ -132,13 +132,14 @@ const sortFlagTime = "time"
 const sortFlagType = "type"
 
 func listCommand() *cobra.Command {
+	start, end := 0, dag.MaxLamportClock
 	var sortFlag string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Lists the transactions on the network",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientConfig := core.NewClientConfigForCommand(cmd)
-			transactions, err := httpClient(clientConfig).ListTransactions()
+			transactions, err := httpClient(clientConfig).ListTransactions(start, end)
 			if err != nil {
 				return fmt.Errorf("unable to list transactions: %w", err)
 			}
@@ -152,6 +153,8 @@ func listCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&sortFlag, "sort", sortFlagTime, "sort the results on either time or type")
+	cmd.Flags().IntVar(&start, "start", start, "start LC value (inclusive)")
+	cmd.Flags().IntVar(&end, "end", end, "stop LC value (exclusive)")
 	return cmd
 }
 

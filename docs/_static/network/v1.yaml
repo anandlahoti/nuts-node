@@ -9,14 +9,31 @@ servers:
   - url: http://localhost:1323
 paths:
   /internal/network/v1/transaction:
+    parameters:
+      - name: start
+        in: query
+        description: "Lamport Clock value from where to start (inclusive). Default = 0."
+        required: false
+        example: 2
+        schema:
+          type: integer
+          minimum: 0
+      - name: end
+        in: query
+        description: "Lamport Clock value where to stop (exclusive). Returns everything after `start` when omitted. Must be larger than the `start` parameter."
+        required: false
+        example: 3
+        schema:
+          type: integer
+          minimum: 1
     get:
       summary: "Lists the transactions on the DAG"
       description: >
-        Lists all transactions on the DAG. Since this call returns all transactions on the DAG, care should be taken when there
-        are many of them.
-        TODO: By then we'd need a more elaborate querying interface (ranging over timestamps/hashes, pagination, filtering, etc).
+        Lists all transactions on the DAG within the requested (optional) range.
+        TODO: We need a more elaborate querying interface (ranging over timestamps/hashes, pagination, filtering, etc).
 
         error returns:
+        * 400 - invalid range
         * 500 - internal server error
       operationId: "listTransactions"
       tags:

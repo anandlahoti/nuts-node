@@ -48,7 +48,7 @@ func TestHttpClient_ListTransactions(t *testing.T) {
 		expected := dag.CreateTestTransactionWithJWK(1)
 		data, _ := json.Marshal([]string{string(expected.Data())})
 		s := httptest.NewServer(handler{statusCode: http.StatusOK, responseData: data})
-		actual, err := getClient(s).ListTransactions()
+		actual, err := getClient(s).ListTransactions(0, 1)
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -56,6 +56,16 @@ func TestHttpClient_ListTransactions(t *testing.T) {
 			return
 		}
 		assert.Equal(t, expected, actual[0])
+	})
+	t.Run("invalid input (400)", func(t *testing.T) {
+		s := httptest.NewServer(handler{statusCode: http.StatusBadRequest})
+		txs, err := getClient(s).ListTransactions(1, 0)
+		if !assert.Error(t, err) {
+			return
+		}
+		if !assert.Nil(t, txs, 1) {
+			return
+		}
 	})
 }
 
